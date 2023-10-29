@@ -1,0 +1,300 @@
+EFS----------
+To mount the efs file system to the ubuntu
+
+Go to network of the EFS file system and add the network and add choose security group. and allow ICMP port in SG to communicate with other peering connection.
+
+sudo mkdir /mnt/efs/
+sudo apt update -y
+sudo apt -y install git binutils
+git clone https://github.com/aws/efs-utils
+cd efs-utils
+sudo ./build-deb.sh
+sudo apt -y install ./build/amazon-efs-utils*deb
+
+To add the EFS file system to another region we need to create the peering connection and connecting using mount via ip.
+
+---------------------------------------------------------------------
+
+formatting ebs vol
+lsblk (to chek the ebs volume)
+sudo mkdir vol1
+sudo mkfs -t ext4 /dev/xvdf  (to format)
+sudo mount /dev/xvdf vol1 (to mount)
+sudo umnout -d /dev/xvdf  (to unmount)
+--------------------------------------------------------------------------------------------------------------------------
+Jenkins Installation.----java
+
+sudo apt install python3
+sudo apt install openjdk-11-jdk -y
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt-get update
+sudo apt-get install jenkins
+
+----------------------------------------------------
+Kubernetes Installation
+
+<Both master and client>
+sudo apt install openjdk-11-jdk -y
+sudo apt update -y
+sudo apt install docker.io -y 
+sudo apt install -y curl apt-transport-https ca-certificates software-properties-common
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+sudo add-apt-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+sudo swapoff -a
+sudo apt update
+sudo apt install -y kubelet kubeadm kubectl
+sudo apt-mark hold docker kubelet kubeadm kubectl
+
+
+
+In Master Machine 
+sudo hostnamectl set-hostname "k8smaster" 
+exec bash 
+
+sudo su 
+sudo kubeadm init 
+
+On client machine
+
+sudo hostnamectl set-hostname "k8snode" 
+exec bash 
+
+kubeadm join 172.31.87.164:6443 --token 7edv97.8s6qu8eiiectwzib \
+        --discovery-token-ca-cert-hash sha256:f9c09afbbc363b510c9a9dcadbb7617a6f802ec8d3735f4c2524f6d15114cfdf
+
+On master machine 
+exit
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+kubectl create -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+
+
+
+
+First need to create ingree controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/mandatory.yaml
+
+Installing all the services
+$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/baremetal/service-nodeport.yaml
+
+------------------------------------------------------------------------------------------------------------
+
+Ingress
+
+sudo apt update -y
+sudo apt install docker.io
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube_latest_amd64.deb
+sudo dpkg -i minikube_latest_amd64.deb
+sudo chmod 777 /var/run/docker.sock
+minikube start
+sudo snap install kubectl --classic
+minikube addons enable ingress
+
+
+
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+        - path: /custom
+          pathType: Prefix
+          backend:
+            service:
+              name: my-apache2
+              port:
+                number: 80
+  - http:
+      paths:
+        - path: /apache
+          pathType: Prefix
+          backend:
+            service:
+              name: my-apache1
+              port:
+                number: 80
+
+
+
+
+
+kubectl apply -f ingress.yaml
+kubectl port-forward service/ingress-nginx-controller -n ingress-nginx --address 0.0.0.0 :443
+
+open the ip address in your browser on the port that it outputs when you enter the previous command using https and not http
+
+
+
+
+
+Acquire EIp
+Attach it to the instance
+Check the internet access has been establish
+
+Objective 2: Establish a backup in Oregon to ensure high availability. - Tasks:
+1.	Create a backup (AMI) of this EC2 instance in a different region (Oregon).
+Create AMI copy from the above instace.
+Copy into oregon region.
+Create the EFS in the N.Vir region
+MAke the instance private.
+Create the EFS in the N.Vir region
+and attach the EFS created in the N.virginia region and oregon region private instance.
+Attch the above two instance with the EFS and create the file check the access from both instances 
+
+https://www.bilibili.tv/en/video/4787532323362304
+
+
+
+#!groovy
+pipeline{
+	 environment { 
+         DOCKERHUB_CREDENTIALS= credentials('dockerhub')     
+
+    }
+
+  agent {label "master"}
+  
+    stages
+      {
+        stage('Docker Build') 
+         {
+    	      steps 
+           {
+      	     print("building docker image") 
+             sh "sudo chmod 777 /var/run/docker.sock"
+             sh "docker build -t pav537/2824:latest ."
+		}
+		}
+		stage('Login to Docker Hub') 
+			{         
+			steps{                            
+				sh 'echo $DOCKERHUB_CREDENTIALS_PSW | sudo docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'                 
+				echo 'Login Completed'                
+				}           
+			} 
+		
+	 stage('Deploy our image') 
+	   { 
+            steps 
+			{ 
+			  sh "docker push pav537/2824:latest"			
+            } 
+        }
+         
+     stage('create nodeport service')
+        {
+          steps {
+            sh "sudo kubectl create -f k8s.yml"
+          }
+        }
+    }
+}
+
+Docker push
+https://thetechdarts.com/deploy-to-dockerhub-using-jenkins-declarative-pipeline/
+https://dzone.com/articles/building-docker-images-to-docker-hub-using-jenkins
+
+---------------------------------------------------------------------
+Ingress Controller
+
+https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/#41-running-nginx-ingress-controller
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx-example
+  rules:
+  - http:
+      paths:
+      - path: /testpath/
+        pathType: Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+  - http:
+      paths:
+        - backend:
+            service:
+              name: my-apache1
+              port:
+                number: 80
+		  path: /apache/
+          pathType: Prefix
+		  
+		  
+		  
+		  
+                                                                                                                                                                                         
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx-example
+  rules:
+  - http:
+      paths:
+      - path: /testpath/
+        pathType: Prefix
+        backend:
+          service:
+            name: my-service
+            port:
+              number: 80
+  - http:
+      paths:
+	  -  path: /apache/
+	     pathType: Prefix 
+         backend:
+           service:
+             name: my-apache1
+             port:
+               number: 80
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
