@@ -2,10 +2,7 @@ ELK --- Elastic Stack, Logstash Kibana  Beats
 
 At leat 2 GB RAM 20 GB hard, 
 
-
--------------------ELK installation----------------
-
-sudo apt-get update
+-------ELK installation-----
 
 sudo apt-get upgrade
 
